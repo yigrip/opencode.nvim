@@ -278,5 +278,78 @@ test("edit waits for success and uses final result rather than progress notes", 
   assert(result == '{"replacement":"new"}' and calls == 1)
 end)
 
+test("model picker saves a choice and session creation uses it", function()
+  local models = require("opencode.models")
+  local original_path = vim.fn.stdpath
+  local opts = require("opencode.config").opts
+  local original_model = opts.model
+  local root = vim.fn.tempname()
+  vim.fn.stdpath = function(kind)
+    return kind == "state" and root or original_path(kind)
+  end
+  models.save("opencode-go/test-model")
+  opts.model = nil -- Simulate a new Neovim instance reading the saved choice.
+  assert(vim.deep_equal(models.get(), { providerID = "opencode-go", id = "test-model" }))
+  local server = setmetatable({
+    request = function(_, _, _, body)
+      assert(body.model.id == "test-model" and body.model.providerID == "opencode-go")
+      return Promise.resolve({ data = { id = "chosen-model-session" } })
+    end,
+  }, Server)
+  await(server:resolve_session())
+  opts.model = "other/provider/model"
+  assert(models.get().id == "provider/model")
+  models.save(nil)
+  assert(models.get() == nil)
+  assert(not pcall(models.reference, "missing-provider"))
+  vim.fn.stdpath, opts.model = original_path, original_model
+  vim.fn.delete(root, "rf")
+end)
+
+test("model choices prefer Go and omit disabled models", function()
+  local options = require("opencode.models").options({
+    { id = "a", providerID = "other", enabled = true },
+    { id = "z", providerID = "opencode-go", enabled = true },
+    { id = "disabled", providerID = "opencode-go", enabled = false },
+  })
+  assert(#options == 3 and options[1].value == nil)
+  assert(options[2].value == "opencode-go/z" and options[3].value == "other/a")
+end)
+
+test("failed edits show the provider explanation without applying a replacement", function()
+  local output = require("opencode.ui.output")
+  local notify, notice, applied = vim.notify, "", false
+  vim.notify = function(message)
+    notice = tostring(message)
+  end
+  output.begin("provider-rejection", "FizzBuzz", function()
+    applied = true
+  end)
+  output.event({
+    type = "session.execution.failed",
+    data = {
+      sessionID = "provider-rejection",
+      error = {
+        type = "invalid_request",
+        message = "This Go model trains on request data.",
+        response = { body = "DO_NOT_DISPLAY" },
+      },
+    },
+  })
+  vim.notify = notify
+  assert(not applied and notice:find("trains on request data", 1, true))
+  assert(not notice:find("DO_NOT_DISPLAY", 1, true))
+  local visible = false
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local text = table.concat(vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, -1, false), "\n")
+    if text:find("trains on request data", 1, true) and text:find("select_model", 1, true) then
+      visible = true
+    end
+  end
+  assert(visible, "Failed edit error was left in a hidden buffer")
+  output.event({ type = "session.execution.succeeded", data = { sessionID = "provider-rejection" } })
+  assert(not applied)
+end)
+
 print(string.format("%d tests passed", count))
 vim.cmd("qa!")

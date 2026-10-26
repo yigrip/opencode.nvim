@@ -135,6 +135,16 @@ function M.operator(prompt)
   return "g@"
 end
 
+---Choose and persist a model for future independent actions.
+function M.select_model()
+  require("opencode.server.discovery")
+    .get()
+    :next(function(server)
+      return require("opencode.models").select(server)
+    end)
+    :catch(on_error)
+end
+
 ---Reopen the current session's answer buffer.
 function M.output()
   require("opencode.ui.output").show()

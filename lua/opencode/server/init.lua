@@ -281,6 +281,7 @@ function Server:resolve_session()
   return self
     :request("/api/session", "POST", {
       title = "Neovim action",
+      model = require("opencode.models").get(),
       location = { directory = vim.fn.getcwd() },
       permissions = { { action = "edit", resource = "*", effect = "deny" } },
     })

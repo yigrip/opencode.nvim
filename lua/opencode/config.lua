@@ -1,4 +1,5 @@
 ---@class opencode.Opts
+---@field model? string Explicit provider/model identifier; overrides the saved picker choice.
 ---@field rust? { enabled?: boolean } Discover local Rust crates with Cargo metadata.
 ---@field server? opencode.server.Opts OpenCode server connection options.
 ---@field contexts? table<string, fun(context: opencode.context.Context): string?> Context placeholders and their builders.

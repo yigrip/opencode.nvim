@@ -19,7 +19,8 @@ local function render(chat)
   vim.bo[chat.buf].modifiable = false
 end
 
-function M.show()
+function M.show(session)
+  current = session or current
   local chat = current and chats[current]
   if not chat then
     vim.notify("No OpenCode answers yet")
@@ -78,14 +79,21 @@ function M.event(event)
       local ok, err = pcall(chat.complete, last and chat.parts[last] or "")
       if not ok then
         vim.notify(tostring(err), vim.log.levels.ERROR)
-        M.show()
+        M.show(data.sessionID)
       end
     end
   elseif event.type == "session.execution.failed" then
-    table.insert(chat.entries, "**OpenCode failed:** " .. vim.inspect(data.error or data))
+    local err = data.error
+    local message = type(err) == "table" and err.message or type(err) == "string" and err or "Unknown provider error"
+    local hint = ""
+    if message:find("train", 1, true) and message:find("request data", 1, true) then
+      hint = "\n\nChoose another model with :lua require('opencode').select_model(), "
+        .. "or review your OpenCode workspace privacy settings."
+    end
+    table.insert(chat.entries, "**OpenCode failed:** " .. message .. hint)
     chat.finished = true
-    render(chat)
-    vim.notify("OpenCode action failed", vim.log.levels.ERROR)
+    M.show(data.sessionID)
+    vim.notify("OpenCode action failed: " .. message, vim.log.levels.ERROR)
   end
 end
 

@@ -47,6 +47,27 @@ After publishing, you can replace `dir = ...` with `"yigrip/opencode.nvim"`.
 Do not load both forks at once; their module namespaces overlap.
 Run `:checkhealth opencode` after installation.
 
+## Choose a model
+
+Run `:lua require("opencode").select_model()` to pick from the models reported by
+OpenCode. Go models appear first. The choice is saved locally and applies to
+future requests, including after restarting Neovim. Select "Use OpenCode's default
+model" to clear it. No privacy settings are changed by the picker.
+
+Bind it with:
+
+```lua
+vim.keymap.set("n", "<leader>am", function()
+  require("opencode").select_model()
+end, { desc = "Choose AI model" })
+```
+
+Alternatively set `vim.g.opencode_opts.model = "opencode-go/<model-id>"` in your
+configuration. An explicit configuration value takes precedence over the saved
+choice on startup. Provider errors appear in both the notification and result
+buffer. A listed model can still be blocked by your account's privacy or usage
+settings; availability in the picker is not a guarantee of account access.
+
 ## Ask
 
 Select code with `v` or `V` and press `<leader>aa`, or use it in normal mode for

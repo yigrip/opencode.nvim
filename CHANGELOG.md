@@ -1,3 +1,9 @@
+# Model selection and error reporting — unreleased
+
+- Add a persistent model picker and explicit provider/model configuration.
+- Pass the chosen model to every new action session.
+- Show provider error details and open failed edit results automatically.
+
 # Focused actions — unreleased
 
 - Fresh OpenCode session per request, with separate ask and edit actions.
