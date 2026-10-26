@@ -2,21 +2,12 @@ local M = {}
 local chats = {}
 local current
 
-local function render(chat)
-  if not chat.buf or not vim.api.nvim_buf_is_valid(chat.buf) then
-    chat.buf = vim.api.nvim_create_buf(false, true)
-    vim.bo[chat.buf].filetype = "markdown"
-    vim.bo[chat.buf].bufhidden = "hide"
-    vim.bo[chat.buf].swapfile = false
-    vim.keymap.set("n", "q", "<Cmd>close<CR>", { buffer = chat.buf, silent = true })
-  end
+local function render(chat, open)
   local text = table.concat(chat.entries, "\n\n")
   for _, key in ipairs(chat.order) do
     text = text .. "\n\n" .. chat.parts[key]
   end
-  vim.bo[chat.buf].modifiable = true
-  vim.api.nvim_buf_set_lines(chat.buf, 0, -1, false, vim.split(text, "\n", { plain = true }))
-  vim.bo[chat.buf].modifiable = false
+  require("opencode.ui.panel").show("answer", vim.split(text, "\n", { plain = true }), { open = open == true })
 end
 
 function M.show(session)
@@ -26,21 +17,15 @@ function M.show(session)
     vim.notify("No OpenCode answers yet")
     return
   end
-  render(chat)
-  if vim.fn.bufwinid(chat.buf) == -1 then
-    local source = vim.api.nvim_get_current_win()
-    vim.cmd("botright vsplit")
-    vim.api.nvim_win_set_buf(0, chat.buf)
-    vim.wo.wrap = true
-    vim.api.nvim_set_current_win(source)
-  end
+  render(chat, true)
 end
 
-function M.begin(session, prompt, complete)
+function M.begin(session, prompt, complete, stop)
   current = session
   local chat = chats[session] or { entries = {}, parts = {}, order = {} }
   chats[session] = chat
   chat.complete = complete
+  chat.stop = stop
   for _, key in ipairs(chat.order) do
     table.insert(chat.entries, chat.parts[key])
   end
@@ -57,6 +42,15 @@ function M.event(event)
   if not chat then
     return
   end
+  if
+    event.type == "session.execution.succeeded"
+    or event.type == "session.execution.failed"
+    or event.type == "session.execution.interrupted"
+  then
+    if chat.stop then
+      chat.stop()
+    end
+  end
   if event.type == "session.text.delta" or event.type == "session.text.ended" then
     local key = tostring(data.assistantMessageID) .. ":" .. tostring(data.ordinal)
     if not chat.parts[key] then
@@ -68,7 +62,7 @@ function M.event(event)
     else
       chat.parts[key] = chat.parts[key] .. (data.delta or "")
     end
-    if not chat.complete then
+    if not chat.complete and current == data.sessionID then
       render(chat)
     end
   elseif event.type == "session.execution.succeeded" and not chat.finished then
@@ -82,6 +76,10 @@ function M.event(event)
         M.show(data.sessionID)
       end
     end
+  elseif event.type == "session.execution.interrupted" then
+    chat.finished = true
+    table.insert(chat.entries, "**Action stopped.**")
+    M.show(data.sessionID)
   elseif event.type == "session.execution.failed" then
     local err = data.error
     local message = type(err) == "table" and err.message or type(err) == "string" and err or "Unknown provider error"

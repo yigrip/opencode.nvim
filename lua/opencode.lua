@@ -147,7 +147,9 @@ end
 
 ---Reopen the current session's answer buffer.
 function M.output()
-  require("opencode.ui.output").show()
+  if not require("opencode.ui.replacement").show() then
+    require("opencode.ui.output").show()
+  end
 end
 
 M.format = require("opencode.context").format

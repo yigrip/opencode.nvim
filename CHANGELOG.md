@@ -1,3 +1,9 @@
+# Compact results and progress — unreleased
+
+- Reuse one result buffer for answers, errors, and unified-diff previews.
+- Accept with a, reject with r; completed edits queue without extra tabs.
+- Show source-buffer progress for selection and whole-file requests, plus status-line support.
+
 # Model selection and error reporting — unreleased
 
 - Add a persistent model picker and explicit provider/model configuration.

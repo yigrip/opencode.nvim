@@ -27,9 +27,11 @@ identifiers and contact details accurate.
   requests, session creation. API session-create responses wrap the session in `data`.
 - `context/init.lua` / `builtins.lua`: editor context capture and rendering.
 - `context/rust.lua`: asynchronous Cargo metadata, local crate context and permissions.
-- `ui/replacement.lua`: exact target snapshots, JSON result decoding, side-by-side
+- `ui/replacement.lua`: exact target snapshots, JSON result decoding, single-buffer unified-diff
   preview, accept/reject, and changedtick checks. Acceptance updates only the buffer.
 - `api/prompt.lua`: prompt context, Rust discovery, session permissions, submission.
+- `ui/panel.lua`: one shared result buffer/window; preview controls and answer display.
+- `ui/progress.lua`: source extmark spinner, status text, and timer cleanup.
 - `ui/output.lua`: per-session text segments keyed by assistant message and ordinal;
   final text replaces deltas to avoid duplicates. `output()` reopens the latest buffer.
 - `events/init.lua`: dispatch events only for plugin-owned sessions.

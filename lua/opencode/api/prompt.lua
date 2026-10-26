@@ -5,11 +5,13 @@ local M = {}
 ---@return Promise<any>
 function M.prompt(prompt, context, replacement)
   local Promise = require("opencode.promise")
+  local stop
   return (
     prompt:match("%.%.%.$") and require("opencode.ui.ask").ask(prompt:gsub("%.%.%.$", ""), context)
     or Promise.resolve(prompt)
   )
     :next(function(input)
+      stop = require("opencode.ui.progress").start(context)
       local has_context = false
       for placeholder in pairs(require("opencode.config").opts.contexts) do
         if input:find(placeholder, 1, true) then
@@ -41,7 +43,7 @@ function M.prompt(prompt, context, replacement)
                   require("opencode.ui.replacement").preview(replacement, text)
                 end
               end
-              require("opencode.ui.output").begin(session.id, input, complete)
+              require("opencode.ui.output").begin(session.id, input, complete, stop)
               return context.server:prompt(session.id, plaintext .. rust.text .. instruction)
             end)
         end)
@@ -51,6 +53,9 @@ function M.prompt(prompt, context, replacement)
       context:clear()
     end)
     :catch(function(err)
+      if stop then
+        stop()
+      end
       context:resume()
       return Promise.reject(err)
     end)

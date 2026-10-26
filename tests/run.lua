@@ -351,5 +351,74 @@ test("failed edits show the provider explanation without applying a replacement"
   assert(not applied)
 end)
 
+test("answers and queued previews reuse one buffer without new tabs", function()
+  local output = require("opencode.ui.output")
+  local replacement = require("opencode.ui.replacement")
+  local source = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(source, 0, -1, false, { "original" })
+  output.begin("reuse-1", "first answer")
+  local buffers, tabs = #vim.api.nvim_list_bufs(), #vim.api.nvim_list_tabpages()
+  output.begin("reuse-2", "second answer")
+  assert(#vim.api.nvim_list_bufs() == buffers)
+  local snapshot = replacement.capture({ buf = source })
+  replacement.preview(snapshot, '{"replacement":"first"}')
+  local panel = vim.api.nvim_get_current_buf()
+  replacement.preview(snapshot, '{"replacement":"second"}')
+  assert(#vim.api.nvim_list_bufs() == buffers and #vim.api.nvim_list_tabpages() == tabs)
+  assert(vim.api.nvim_get_current_buf() == panel)
+  local function press(key)
+    for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(panel, "n")) do
+      if mapping.lhs == key then
+        mapping.callback()
+        return
+      end
+    end
+    error("Missing key " .. key)
+  end
+  press("r")
+  assert(vim.api.nvim_get_current_buf() == panel)
+  local text = table.concat(vim.api.nvim_buf_get_lines(panel, 0, -1, false), "\n")
+  assert(text:find("+second", 1, true) and text:find("[a] Accept", 1, true))
+  press("a")
+  assert(vim.api.nvim_buf_get_lines(source, 0, 1, false)[1] == "second")
+  assert(#vim.api.nvim_list_bufs() == buffers and #vim.api.nvim_list_tabpages() == tabs)
+end)
+
+test("closed answer panel stays closed during streamed updates", function()
+  local output = require("opencode.ui.output")
+  output.begin("closed-answer", "question")
+  require("opencode.ui.panel").close()
+  local windows = #vim.api.nvim_list_wins()
+  output.event({
+    type = "session.text.delta",
+    data = { sessionID = "closed-answer", assistantMessageID = "answer", ordinal = 0, delta = "Still generating" },
+  })
+  assert(#vim.api.nvim_list_wins() == windows)
+end)
+
+test("whole-file progress is visible and cleared on all terminal events", function()
+  local progress = require("opencode.ui.progress")
+  local output = require("opencode.ui.output")
+  progress.stop_all()
+  local buf = vim.api.nvim_create_buf(false, true)
+  local ns = vim.api.nvim_get_namespaces().OpencodeProgress
+  for _, event in ipairs({ "session.execution.succeeded", "session.execution.failed", "session.execution.interrupted" }) do
+    local stop = progress.start({ buf = buf, cursor = { 1, 0 } })
+    assert(progress.status():find("AI working", 1, true))
+    assert(#vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {}) == 1)
+    output.begin(event, "whole file", function() end, stop)
+    local notify = vim.notify
+    vim.notify = function() end
+    output.event({ type = event, data = { sessionID = event, error = { message = "test failure" } } })
+    vim.notify = notify
+    assert(progress.status() == "")
+    assert(#vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {}) == 0)
+    stop() -- Cleanup is idempotent.
+  end
+  progress.start({ buf = buf, cursor = { 1, 0 } })
+  progress.stop_all()
+  assert(progress.status() == "")
+end)
+
 print(string.format("%d tests passed", count))
 vim.cmd("qa!")

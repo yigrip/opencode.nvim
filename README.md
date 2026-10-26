@@ -72,7 +72,7 @@ settings; availability in the picker is not a guarantee of account access.
 
 Select code with `v` or `V` and press `<leader>aa`, or use it in normal mode for
 the entire file. Ask for an explanation, expected output, or generated code.
-The answer streams into a temporary Markdown buffer without moving editor focus.
+The answer streams into the shared result buffer without moving editor focus.
 Press `q` inside that buffer to close it; `<leader>ao` reopens the latest result.
 
 Questions do not automatically edit files. To request an applied change, use
@@ -85,11 +85,12 @@ mode targets the entire buffer. You can also call
 `require("opencode").edit("Handle empty input")` with a prompt directly.
 
 The agent reads relevant context and returns replacement text. Once complete,
-a new tab shows a side-by-side diff of the original and proposed buffer:
+one reusable result buffer shows a unified diff and asks whether to accept or reject:
 
-- `da`: accept the replacement into the source buffer.
-- `dr` or `q`: reject/close without changing the source.
-- `]c` / `[c`: move between diff hunks.
+- `a` or `da`: accept the replacement into the source buffer.
+- `r`, `dr`, `q`, or Escape: reject/close without changing the source.
+Answers, errors, and previews reuse the same unlisted result buffer. Concurrent
+completed edits queue for review instead of opening more windows.
 
 Acceptance is one buffer edit, undoable with `u`. It does not write the file;
 use `:write` when ready. Text outside a selection remains unchanged. The plugin
@@ -100,6 +101,11 @@ are supported; blockwise replacement requests are rejected with an explanation.
 The action picker routes edit/document/fix/implement/optimize through replacement
 previews. Explain/review/test return answers; test generation is a suggestion.
 This is focused buffer editing, not an autonomous multi-file editing workflow.
+
+An animated “AI working…” label appears in the source buffer after submission,
+including normal-mode whole-file requests. It stops on completion, failure,
+interruption, or disconnect. `require("opencode.ui.progress").status()` can be
+added to a status line for an indicator that stays visible when you scroll.
 
 ## Context and independent requests
 

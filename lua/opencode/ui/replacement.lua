@@ -60,49 +60,57 @@ function M.apply(snapshot, lines)
   vim.api.nvim_buf_set_lines(snapshot.buf, 0, -1, false, lines)
 end
 
+local pending = {}
+
+function M.show()
+  local item = pending[1]
+  if not item then
+    return false
+  end
+  local panel = require("opencode.ui.panel")
+  local function finish()
+    table.remove(pending, 1)
+    panel.locked = false
+    panel.close()
+    M.show()
+  end
+  panel.show("replacement", item.lines, {
+    filetype = "diff",
+    focus = true,
+    reject = finish,
+    accept = function()
+      local ok, err = pcall(M.apply, item.snapshot, item.proposed)
+      if not ok then
+        vim.notify(tostring(err), vim.log.levels.ERROR)
+        return
+      end
+      finish()
+      vim.notify("Replacement accepted; use :write to save")
+    end,
+  })
+  panel.locked = true
+  return true
+end
+
 function M.preview(snapshot, text)
   if not vim.api.nvim_buf_is_valid(snapshot.buf) then
     error("Source buffer no longer exists; no replacement was applied")
   end
   local proposed = M.proposed(snapshot, M.decode(text))
-  vim.cmd("tabnew")
-  local tab = vim.api.nvim_get_current_tabpage()
-  local original = vim.api.nvim_get_current_buf()
-  vim.bo[original].buftype = "nofile"
-  vim.bo[original].bufhidden = "wipe"
-  vim.bo[original].swapfile = false
-  vim.api.nvim_buf_set_lines(original, 0, -1, false, snapshot.lines)
-  vim.bo[original].modifiable = false
-  vim.cmd("diffthis")
-  vim.cmd("vnew")
-  local candidate = vim.api.nvim_get_current_buf()
-  vim.bo[candidate].buftype = "nofile"
-  vim.bo[candidate].bufhidden = "wipe"
-  vim.bo[candidate].swapfile = false
-  vim.api.nvim_buf_set_lines(candidate, 0, -1, false, proposed)
-  vim.bo[candidate].modifiable = false
-  vim.cmd("diffthis")
-  local function close()
-    if vim.api.nvim_tabpage_is_valid(tab) then
-      vim.api.nvim_set_current_tabpage(tab)
-      vim.cmd("tabclose!")
-    end
+  ---@diagnostic disable-next-line: deprecated
+  local diff_fn = (vim.text and vim.text.diff) or vim.diff
+  local diff = diff_fn(
+    table.concat(snapshot.lines, "\n") .. "\n",
+    table.concat(proposed, "\n") .. "\n",
+    { result_type = "unified", ctxlen = 3 }
+  )
+  assert(type(diff) == "string", "Could not produce a replacement diff")
+  local lines = { "Accept this change?  [a] Accept  [r] Reject", "" }
+  vim.list_extend(lines, vim.split(diff == "" and "No changes proposed." or diff, "\n", { plain = true }))
+  table.insert(pending, { snapshot = snapshot, proposed = proposed, lines = lines })
+  if #pending == 1 then
+    M.show()
   end
-  for _, buf in ipairs({ original, candidate }) do
-    vim.bo[buf].filetype = vim.bo[snapshot.buf].filetype
-    vim.keymap.set("n", "da", function()
-      local ok, err = pcall(M.apply, snapshot, proposed)
-      if not ok then
-        vim.notify(tostring(err), vim.log.levels.ERROR)
-        return
-      end
-      close()
-      vim.notify("Replacement accepted in buffer; use :write to save")
-    end, { buffer = buf, desc = "Accept replacement" })
-    vim.keymap.set("n", "dr", close, { buffer = buf, desc = "Reject replacement" })
-    vim.keymap.set("n", "q", close, { buffer = buf, desc = "Close replacement preview" })
-  end
-  vim.notify("Replacement preview: da accept, dr reject. Left: original; right: replacement.")
 end
 
 return M
