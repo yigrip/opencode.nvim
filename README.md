@@ -131,3 +131,15 @@ Tests cover context, independent sessions, streaming, replacement ranges, review
 stale-buffer rejection, and Cargo discovery. Live API checks need OpenCode v2;
 a live model request is separate. Optional Snacks/Blink integration is retained.
 See LICENSE for upstream attribution and CHANGELOG.md for history.
+
+## Releases
+
+CI checks `main` and pull requests. Publish a stable version by pushing a tag
+like `v1.0.3`; the release workflow creates its GitHub Release using the built-in
+workflow token. No personal access token or release-PR approval permission is needed.
+The workflow can also be run manually for an existing version tag.
+
+Install from GitHub with `"yigrip/opencode.nvim"`, `branch = "main"`, and
+`version = false` in your lazy.nvim spec. `lazy-lock.json` pins the installed
+commit. Once version tags exist, use `version = "*"` instead of `branch` to track
+stable releases.
